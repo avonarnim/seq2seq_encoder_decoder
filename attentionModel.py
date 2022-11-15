@@ -2,6 +2,7 @@
 import torch.nn as nn
 import numpy as np
 import torch
+import torch.functional as F
 
 
 class Encoder(nn.Module):
@@ -24,7 +25,7 @@ class Encoder(nn.Module):
 
         return h_n
 
-class Decoder(nn.Module):
+class AttnDecoder(nn.Module):
     """
     Conditional recurrent decoder. Iteratively generates the next
     token given the context vector from the encoder and ground truth
@@ -33,9 +34,12 @@ class Decoder(nn.Module):
     """
 
     def __init__(self, n_actions, n_targets, a_embed_dim, t_embed_dim, hidden_dim):
-        super(Decoder, self).__init__()
+        super(AttnDecoder, self).__init__()
         self.targetEmbedding = nn.Embedding(n_targets, t_embed_dim)
         self.actionEmbedding = nn.Embedding(n_actions, a_embed_dim)
+
+        self.attn = nn.Linear(t_embed_dim+a_embed_dim+hidden_dim, hidden_dim)
+        self.attn_combination = nn.Linear(t_embed_dim+a_embed_dim+hidden_dim, hidden_dim)
 
         self.lstm = nn.LSTM(t_embed_dim+a_embed_dim, hidden_dim)
 
@@ -48,9 +52,15 @@ class Decoder(nn.Module):
         actionEmbedding = self.actionEmbedding(seed[0])
         targetEmbedding = self.targetEmbedding(seed[1])
 
-        cat = torch.cat((actionEmbedding, targetEmbedding), 2)
+        catEmbedding = torch.cat((actionEmbedding, targetEmbedding), 2)
 
-        lstm_out, (hidden_state, cell_state) = self.lstm(cat, (h_0, c_0))
+        attn_weights = F.softmax(self.attn(torch.cat((catEmbedding, h_0), 2)), dim=2)
+        attn_applied = torch.bmm(attn_weights, seed)
+
+        attn_output = torch.cat((catEmbedding, attn_applied), 2)
+        attn_output = self.attn_combination(attn_output)
+
+        lstm_out, (hidden_state, cell_state) = self.lstm(attn_output, (h_0, c_0))
 
         outAction = self.fcAction(lstm_out)
         outTarget = self.fcTarget(lstm_out)
@@ -67,16 +77,16 @@ class Decoder(nn.Module):
         return outAction, outTarget, hidden_state, cell_state
 
 
-class EncoderDecoder(nn.Module):
+class EncoderAttnDecoder(nn.Module):
     """
     Wrapper class over the Encoder and Decoder.
     TODO: edit the forward pass arguments to suit your needs
     """
 
     def __init__(self, vocab_size, t2i, a2i, embedding_dim, hidden_dim):
-        super(EncoderDecoder, self).__init__()
+        super(EncoderAttnDecoder, self).__init__()
         self.encoder = Encoder(vocab_size, embedding_dim, hidden_dim)
-        self.decoder = Decoder(len(a2i), len(t2i), 5, 40, hidden_dim)
+        self.attnDecoder = AttnDecoder(len(a2i), len(t2i), 5, 40, hidden_dim)
         self.t2i = t2i
         self.a2i = a2i
 

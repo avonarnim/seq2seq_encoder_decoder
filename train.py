@@ -12,7 +12,8 @@ from utils import (
     preprocess_string,
     build_tokenizer_table,
     build_output_tables,
-    prefix_match
+    prefix_match,
+    total_match_proportion,
 )
 
 def encode_data(data, vocab_to_index, seq_len, actions_to_index, targets_to_index, max_episode_len, max_instruction_len):
@@ -120,7 +121,8 @@ def setup_dataloader(args):
         episode_instructions = []
         episode_predictions = [["<start>", "<start>"]]
         for insts, outseq in episode:
-            episode_instructions.append(insts)
+            for word in insts.split():
+                episode_instructions.append(insts)
             episode_predictions.append(outseq)
         episode_predictions.append(["<end>", "<end>"])
         val_flattened.append([episode_instructions, episode_predictions])
@@ -143,7 +145,6 @@ def setup_dataloader(args):
 
     train_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True, batch_size=minibatch_size)
     val_loader = torch.utils.data.DataLoader(val_dataset, shuffle=True, batch_size=minibatch_size)
-    val_loader = None
     return train_loader, val_loader, vocab_to_index, index_to_vocab, actions_to_index, index_to_actions, targets_to_index, index_to_targets
 
 
@@ -219,9 +220,8 @@ def train_epoch(
     epoch_loss = 0.0
     epoch_acc = 0.0
     exact_match = []
-
-    if not loader:
-        return 0, 0
+    epoch_guessed_proportion = 0.0
+    guessed_proportion = []
 
     # iterate over each batch in the dataloader
     # NOTE: you may have additional outputs from the loader __getitem__, you can modify this
@@ -263,20 +263,26 @@ def train_epoch(
         exact_match.append(output == labels)
 
         prefixes = []
+        proportion = []
         for i in range(len(output)):
             prefixes.append(prefix_match(output[i], labels[i]))
+            proportion.append(total_match_proportion(output[i], labels[i]))
+
         acc = sum(prefixes) / len(prefixes)
+        guessed_proportion.append(sum(proportion) / len(proportion))
 
         # logging
         epoch_loss += loss.item()
         epoch_acc += acc
+        epoch_guessed_proportion += guessed_proportion
 
     epoch_loss /= len(loader)
     epoch_acc /= len(loader)
+    epoch_guessed_proportion /= len(loader)
 
     print(f"{'Train' if training else 'Val'} Loss: {epoch_loss:.4f} Accuracy: {epoch_acc:.4f}")
 
-    return epoch_loss, epoch_acc
+    return epoch_loss, epoch_acc, epoch_guessed_proportion
 
 
 def validate(args, model, loader, optimizer, criterion, device):
@@ -285,7 +291,7 @@ def validate(args, model, loader, optimizer, criterion, device):
 
     # don't compute gradients
     with torch.no_grad():
-        val_loss, val_acc = train_epoch(
+        val_loss, val_acc, val_guessed_proportion = train_epoch(
             args,
             model,
             loader,
@@ -295,7 +301,7 @@ def validate(args, model, loader, optimizer, criterion, device):
             training=False,
         )
 
-    return val_loss, val_acc
+    return val_loss, val_acc, val_guessed_proportion
 
 
 def train(args, model, loaders, optimizer, criterion, device):
@@ -306,13 +312,15 @@ def train(args, model, loaders, optimizer, criterion, device):
 
     training_loss = []
     training_accuracy = []
+    training_guessed_proportion = []
     validation_loss = []
     validation_accuracy = []
+    validation_guessed_proportion = []
     for epoch in tqdm.tqdm(range(args.num_epochs)):
 
         # train single epoch
         # returns loss for action and target prediction and accuracy
-        train_loss, train_acc = train_epoch(
+        train_loss, train_acc, train_guessed_proportion = train_epoch(
             args,
             model,
             loaders["train"],
@@ -323,6 +331,7 @@ def train(args, model, loaders, optimizer, criterion, device):
 
         training_loss.append(train_loss)
         training_accuracy.append(train_acc)
+        train_guessed_proportion.append(train_guessed_proportion)
 
         # some logging
         print(f"train loss : {train_loss}")
@@ -331,7 +340,7 @@ def train(args, model, loaders, optimizer, criterion, device):
         # during eval, we run a forward pass through the model and compute
         # loss and accuracy but we don't update the model weights
         if epoch % args.val_every == 0:
-            val_loss, val_acc = validate(
+            val_loss, val_acc, val_guess_prop = validate(
                 args,
                 model,
                 loaders["val"],
@@ -342,6 +351,7 @@ def train(args, model, loaders, optimizer, criterion, device):
 
             validation_loss.append(val_loss)
             validation_accuracy.append(val_acc)
+            validation_guessed_proportion.append(val_guess_prop)
 
             print(f"val loss : {val_loss} | val acc: {val_acc}")
 
@@ -367,6 +377,14 @@ def train(args, model, loaders, optimizer, criterion, device):
     plt.title("Training Accuracy vs Epochs")
     plt.savefig("training_accuracy.png")
 
+    x = np.arange(0, args.num_epochs)
+    y = np.array(training_guessed_proportion)
+    plt.plot(x, y)
+    plt.xlabel("Epochs")
+    plt.ylabel("Proportion of training targets *ever* guessed for a sequence block")
+    plt.title("Proportion of training targets *ever* guessed vs Epochs")
+    plt.savefig("training_guessed_proportion.png")
+
     x = np.arange(0, args.num_epochs, args.val_every)
     y = np.array(validation_loss)
     plt.plot(x, y)
@@ -383,6 +401,13 @@ def train(args, model, loaders, optimizer, criterion, device):
     plt.title("Validation Accuracy vs Epochs")
     plt.savefig("validation_accuracy.png")
 
+    x = np.arange(0, args.num_epochs, args.val_every)
+    y = np.array(validation_guessed_proportion)
+    plt.plot(x, y)
+    plt.xlabel("Epochs")
+    plt.ylabel("Proportion of validation targets *ever* guessed for a sequence block")
+    plt.title("Proportion of validation targets *ever* guessed vs Epochs")
+    plt.savefig("validation_guessed_proportion.png")
 
 
 def main(args):

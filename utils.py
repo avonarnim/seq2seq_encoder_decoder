@@ -99,3 +99,10 @@ def prefix_match(predicted_labels, gt_labels):
     pm = (1.0 / seq_length) * i
 
     return pm
+
+def total_match_proportion(predicted_labels, gt_labels):
+
+    preds_set = set(predicted_labels)
+    gt_set = set(gt_labels)
+
+    return len(preds_set.intersection(gt_set))/len(gt_set)
