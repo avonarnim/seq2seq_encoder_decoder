@@ -43,11 +43,11 @@ def build_tokenizer_table(train, vocab_size=1000):
         if (len(episode) > max_episode_len):
             max_episode_len = len(episode)
         for inst, _ in episode:
+            inst = preprocess_string(inst).lower().split()
             if (len(inst) > max_instruction_len):
                 max_instruction_len = len(inst)
-            inst = preprocess_string(inst)
             padded_len = 2  # start/end
-            for word in inst.lower().split():
+            for word in inst:
                 if len(word) > 0:
                     word_list.append(word)
                     padded_len += 1
@@ -93,7 +93,7 @@ def prefix_match(predicted_labels, gt_labels):
     seq_length = len(gt_labels)
     
     for i in range(seq_length):
-        if predicted_labels[i] != gt_labels[i]:
+        if predicted_labels[i][0] != gt_labels[i][0] or predicted_labels[i][1] != gt_labels[i][1]:
             break
     
     pm = (1.0 / seq_length) * i
