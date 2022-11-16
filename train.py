@@ -5,7 +5,7 @@ from sklearn.metrics import accuracy_score
 import json
 import numpy as np
 from model import EncoderDecoder
-import matplotlib as plt
+import matplotlib.pyplot as plt
 
 from utils import (
     get_device,
@@ -106,7 +106,7 @@ def setup_dataloader(args):
 
     # Encode the training and validation set inputs/outputs as sequences
     train_flattened = []
-    for episode in train_data[:400]:
+    for episode in train_data[:100]:
         episode_instructions = []
         episode_predictions = [["<start>", "<start>"]]
         for insts, outseq in episode:
@@ -117,7 +117,7 @@ def setup_dataloader(args):
         train_flattened.append([episode_instructions, episode_predictions])
 
     val_flattened = []
-    for episode in val_data[:400]:
+    for episode in val_data[:50]:
         episode_instructions = []
         episode_predictions = [["<start>", "<start>"]]
         for insts, outseq in episode:
@@ -221,7 +221,6 @@ def train_epoch(
     epoch_acc = 0.0
     exact_match = []
     epoch_guessed_proportion = 0.0
-    guessed_proportion = []
 
     # iterate over each batch in the dataloader
     # NOTE: you may have additional outputs from the loader __getitem__, you can modify this
@@ -269,12 +268,11 @@ def train_epoch(
             proportion.append(total_match_proportion(output[i], labels[i]))
 
         acc = sum(prefixes) / len(prefixes)
-        guessed_proportion.append(sum(proportion) / len(proportion))
 
         # logging
         epoch_loss += loss.item()
         epoch_acc += acc
-        epoch_guessed_proportion += guessed_proportion
+        epoch_guessed_proportion += sum(proportion) / len(proportion)
 
     epoch_loss /= len(loader)
     epoch_acc /= len(loader)
@@ -320,7 +318,7 @@ def train(args, model, loaders, optimizer, criterion, device):
 
         # train single epoch
         # returns loss for action and target prediction and accuracy
-        train_loss, train_acc, train_guessed_proportion = train_epoch(
+        train_loss, train_acc, train_guess_prop = train_epoch(
             args,
             model,
             loaders["train"],
@@ -331,7 +329,7 @@ def train(args, model, loaders, optimizer, criterion, device):
 
         training_loss.append(train_loss)
         training_accuracy.append(train_acc)
-        train_guessed_proportion.append(train_guessed_proportion)
+        training_guessed_proportion.append(train_guess_prop)
 
         # some logging
         print(f"train loss : {train_loss}")
@@ -361,6 +359,8 @@ def train(args, model, loaders, optimizer, criterion, device):
     # 3 figures for 1) training loss, 2) validation loss, 3) validation accuracy
     # ===================================================== #
 
+    print("Training loss: ", np.arange(0, args.num_epochs), np.array(training_loss))
+    plt.figure(1)
     x = np.arange(0, args.num_epochs)
     y = np.array(training_loss)
     plt.plot(x, y)
@@ -369,6 +369,7 @@ def train(args, model, loaders, optimizer, criterion, device):
     plt.title("Training Loss vs Epochs")
     plt.savefig("training_loss.png")
 
+    plt.figure(2)
     x = np.arange(0, args.num_epochs)
     y = np.array(training_accuracy)
     plt.plot(x, y)
@@ -377,6 +378,7 @@ def train(args, model, loaders, optimizer, criterion, device):
     plt.title("Training Accuracy vs Epochs")
     plt.savefig("training_accuracy.png")
 
+    plt.figure(3)
     x = np.arange(0, args.num_epochs)
     y = np.array(training_guessed_proportion)
     plt.plot(x, y)
@@ -385,6 +387,7 @@ def train(args, model, loaders, optimizer, criterion, device):
     plt.title("Proportion of training targets *ever* guessed vs Epochs")
     plt.savefig("training_guessed_proportion.png")
 
+    plt.figure(4)
     x = np.arange(0, args.num_epochs, args.val_every)
     y = np.array(validation_loss)
     plt.plot(x, y)
@@ -393,6 +396,7 @@ def train(args, model, loaders, optimizer, criterion, device):
     plt.title("Validation Loss vs Epochs")
     plt.savefig("validation_loss.png")
 
+    plt.figure(5)
     x = np.arange(0, args.num_epochs, args.val_every)
     y = np.array(validation_accuracy)
     plt.plot(x, y)
@@ -401,6 +405,7 @@ def train(args, model, loaders, optimizer, criterion, device):
     plt.title("Validation Accuracy vs Epochs")
     plt.savefig("validation_accuracy.png")
 
+    plt.figure(6)
     x = np.arange(0, args.num_epochs, args.val_every)
     y = np.array(validation_guessed_proportion)
     plt.plot(x, y)
@@ -447,10 +452,10 @@ if __name__ == "__main__":
         "--batch_size", type=int, default=32, help="size of each batch in loader"
     )
     parser.add_argument("--force_cpu", action="store_true", help="debug mode")
-    parser.add_argument("--eval", action="store_true", help="run eval")
-    parser.add_argument("--num_epochs", default=1, help="number of training epochs")
+    parser.add_argument("--eval", default=False, help="run eval")
+    parser.add_argument("--num_epochs", default=5, help="number of training epochs")
     parser.add_argument(
-        "--val_every", default=5, help="number of epochs between every eval loop"
+        "--val_every", default=1, help="number of epochs between every eval loop"
     )
 
     # ================== TODO: CODE HERE ================== #

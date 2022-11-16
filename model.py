@@ -3,7 +3,6 @@ import torch.nn as nn
 import numpy as np
 import torch
 
-
 class Encoder(nn.Module):
     """
     Encode a sequence of tokens. Run the input sequence
@@ -55,15 +54,6 @@ class Decoder(nn.Module):
         outAction = self.fcAction(lstm_out)
         outTarget = self.fcTarget(lstm_out)
 
-        # outTarget = self.fcTarget(targetEmbedding).squeeze(1)
-        # print("OUT TARGET", outTarget)
-        # outAction = self.fcAction(actionEmbedding).squeeze(1)
-        # print("OUT ACTIOn", outAction)
-
-        # outputPair = torch.from_numpy(np.array([np.argmax(outTarget), np.argmax(outAction)]))
-
-        # lstm_out, (hidden_state, c_n) = self.lstm(outputPair, h_0)
-
         return outAction, outTarget, hidden_state, cell_state
 
 
@@ -92,7 +82,6 @@ class EncoderDecoder(nn.Module):
 
         action_outputs = torch.empty((len(batch), len(labels[0]), len(self.a2i)))
         target_outputs = torch.empty((len(batch), len(labels[0]), len(self.t2i)))
-        print(action_outputs.shape, target_outputs.shape)
 
         # for each instruction, this creates an encoded hidden state
         # then, it passes it to the deocder which outputs the target and action
@@ -110,9 +99,7 @@ class EncoderDecoder(nn.Module):
                     seeds[0] = seeds[0].resize(1, len(batch))
                     seeds[1] = seeds[1].resize(1, len(batch))
                 else:
-                    print("got here 2")
-                    seeds = [torch.argmax(action_outputs[seq_idx-1]), torch.argmax(target_outputs[seq_idx-1])]
-                    # seeds = [torch.from_numpy(np.array([np.argmax(outTarget)])), torch.from_numpy(np.array([np.argmax(outAction)]))]
+                    seeds = [torch.argmax(outAction, dim=2), torch.argmax(outTarget, 2)]
 
             outAction, outTarget, h_0, c_0 = self.decoder(seeds, h_0, c_0)
             action_outputs[:, seq_idx, :] = outAction.squeeze()

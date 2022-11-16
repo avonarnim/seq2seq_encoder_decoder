@@ -31,14 +31,14 @@ def setup_dataloader(args):
     # Encode the training and validation set inputs/outputs as sequences
     train_action = []
     train_target = []
-    for episode in train_data[:400]:
+    for episode in train_data[:10]:
         for insts, outseq in episode:
             train_action.append([insts, outseq[0]])
             train_target.append([insts, outseq[1]])
 
     val_action = []
     val_target = []
-    for episode in val_data[:400]:
+    for episode in val_data[:10]:
         for insts, outseq in episode:
             val_action.append([insts, outseq[0]])
             val_target.append([insts, outseq[1]])
