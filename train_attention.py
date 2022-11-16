@@ -4,7 +4,7 @@ import argparse
 from sklearn.metrics import accuracy_score
 import json
 import numpy as np
-from model import EncoderDecoder
+from attentionModel import EncoderAttnDecoder
 import matplotlib.pyplot as plt
 
 from utils import (
@@ -170,7 +170,7 @@ def setup_model(args, vocab_size, t2i, a2i, embedding_dim, hidden_dim):
     # of feeding the model prediction into the recurrent model,
     # you will give the embedding of the target token.
     # ===================================================== #
-    model = EncoderDecoder(vocab_size, t2i, a2i, embedding_dim, hidden_dim)
+    model = EncoderAttnDecoder(vocab_size, t2i, a2i, embedding_dim, hidden_dim)
     return model
 
 

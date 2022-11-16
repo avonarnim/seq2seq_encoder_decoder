@@ -102,7 +102,14 @@ def prefix_match(predicted_labels, gt_labels):
 
 def total_match_proportion(predicted_labels, gt_labels):
 
-    preds_set = set(predicted_labels)
-    gt_set = set(gt_labels)
+
+    preds_set = set()
+    gt_set = set()
+
+    for i in range(len(gt_labels)):
+        preds_set.add(predicted_labels[i][0].item())
+        preds_set.add(predicted_labels[i][1].item())
+        gt_set.add(gt_labels[i][0].item())
+        gt_set.add(gt_labels[i][1].item())
 
     return len(preds_set.intersection(gt_set))/len(gt_set)

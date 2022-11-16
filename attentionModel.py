@@ -2,8 +2,6 @@
 import torch.nn as nn
 import numpy as np
 import torch
-import torch.functional as F
-
 
 class Encoder(nn.Module):
     """
@@ -54,7 +52,7 @@ class AttnDecoder(nn.Module):
 
         catEmbedding = torch.cat((actionEmbedding, targetEmbedding), 2)
 
-        attn_weights = F.softmax(self.attn(torch.cat((catEmbedding, h_0), 2)), dim=2)
+        attn_weights = nn.functional.softmax(self.attn(torch.cat((catEmbedding, h_0), 2)), dim=2)
         attn_applied = torch.bmm(attn_weights, seed)
 
         attn_output = torch.cat((catEmbedding, attn_applied), 2)
@@ -64,15 +62,6 @@ class AttnDecoder(nn.Module):
 
         outAction = self.fcAction(lstm_out)
         outTarget = self.fcTarget(lstm_out)
-
-        # outTarget = self.fcTarget(targetEmbedding).squeeze(1)
-        # print("OUT TARGET", outTarget)
-        # outAction = self.fcAction(actionEmbedding).squeeze(1)
-        # print("OUT ACTIOn", outAction)
-
-        # outputPair = torch.from_numpy(np.array([np.argmax(outTarget), np.argmax(outAction)]))
-
-        # lstm_out, (hidden_state, c_n) = self.lstm(outputPair, h_0)
 
         return outAction, outTarget, hidden_state, cell_state
 
@@ -124,7 +113,7 @@ class EncoderAttnDecoder(nn.Module):
                     seeds = [torch.argmax(action_outputs[seq_idx-1]), torch.argmax(target_outputs[seq_idx-1])]
                     # seeds = [torch.from_numpy(np.array([np.argmax(outTarget)])), torch.from_numpy(np.array([np.argmax(outAction)]))]
 
-            outAction, outTarget, h_0, c_0 = self.decoder(seeds, h_0, c_0)
+            outAction, outTarget, h_0, c_0 = self.attnDecoder(seeds, h_0, c_0)
             action_outputs[:, seq_idx, :] = outAction.squeeze()
             target_outputs[:, seq_idx, :] = outTarget.squeeze()
 
